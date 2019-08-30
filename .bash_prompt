@@ -1,0 +1,204 @@
+#!/bin/bash
+ 
+##################
+# Colors section #
+##################
+ 
+if [[ $- == *i* ]]; then # check for interactive shell issue http://askubuntu.com/questions/591937/no-value-for-term-and-no-t-specified
+    if [[ $(tput colors) -eq 256 ]]; then
+        # Extra tput commands
+	BOLD=$(tput bold)
+	UNDERLINE=$(tput sgr 0 1)
+	REVERSE=$(tput rev)
+	RESET=$(tput sgr0)
+ 
+        # Regular fg
+	BLACK_FG=$(tput setaf 0)
+	RED_FG=$(tput setaf 1)
+	GREEN_FG=$(tput setaf 2)
+	YELLOW_FG=$(tput setaf 3)
+	BLUE_FG=$(tput setaf 4)
+	MAGENTA_FG=$(tput setaf 5)
+	CYAN_FG=$(tput setaf 6)
+	WHITE_FG=$(tput setaf 7)
+ 
+        # Regular bg
+	BLACK_BG=$(tput setab 0)
+	RED_BG=$(tput setab 1)
+	GREEN_BG=$(tput setab 2)
+	YELLOW_BG=$(tput setab 3)
+	BLUE_BG=$(tput setab 4)
+	MAGENTA_BG=$(tput setab 5)
+	CYAN_BG=$(tput setab 6)
+	WHITE_BG=$(tput setab 7)
+    else
+	echo "No colors available for this terminal (see 'man tput')"
+    fi
+fi
+ 
+#####################
+# Functions section #
+#####################
+ 
+function cf_info() {
+    # test (if command) to adapt for personal use cases
+	if [[ $(/home/fsx/pyprojects/tools/parse_cfy_json.py &>/dev/null; echo $?) -eq 0 ]]; then
+ 
+	    # cf target configuration
+	    cf_target_return=$(/home/fsx/pyprojects/tools/parse_cfy_json.py)
+ 
+ 
+		API=$(echo ${cf_target_return} | awk -F " " '{printf "%s", $1}')
+		Instance=$(echo ${cf_target_return} | awk -F " " '{printf "%s", $2}')
+		Site=$(echo ${cf_target_return} | awk -F " " '{printf "%s", $3}')
+		Org=$(echo ${cf_target_return} | awk -F " " '{printf "%s", $4}')
+		Space=$(echo ${cf_target_return} | awk -F " " '{printf "%s", $5}')
+ 
+		if [[ "${Instance}" == "prod" ]]; then
+		    Instance="${BOLD}${REVERSE}${RED_FG}${Instance}${RESET}"
+		else
+		    Instance="${BOLD}${REVERSE}${GREEN_FG}${Instance}${RESET}"
+		fi
+		#debug
+		#echo ${cf_target_return}
+                #echo "API ${API} Instance ${Instance} Site: ${Site} org: ${Org} space: ${Space}"
+		if [[ "${Org}" != "" ]]; then
+		local_PS1="[${Instance} / ${BOLD}${WHITE_FG}${Site}${RESET}] [${BOLD}${MAGENTA_FG}${Org}${RESET}] [${BOLD}${CYAN_FG}${Space}${RESET}]"
+		else
+			local_PS1="${BOLD}${MAGENTA_FG}Not Logged ..."
+		fi
+	else # cf is not installed"
+	    return 1
+	fi
+	printf "<=- ${BOLD}${REVERSE}${YELLOW_FG}CFY :${RESET} ${local_PS1}${RESET}-=>\n${RESET}"
+}
+ 
+function git_info() {
+    if [[ -d .git ]]; then
+	local local_PS1=''
+	if [[ $(which git &>/dev/null; echo $?) -eq 0 ]]; then
+	    local_PS1="${BOLD}${MAGENTA_FG}$(__git_ps1 "(%s)")"
+	else
+	    local_PS1="${BOLD}${MAGENTA_FG}${cmd} is not installed"
+	fi
+	printf "<=- ${BOLD}${REVERSE}${CYAN_FG}Git info:${RESET} ${local_PS1}${RESET}-=>\n${RESET}"
+    fi
+}
+ 
+# Determine active Python virtualenv details
+function virtualenv_info() {
+    local local_PS1=""
+    if [[ -z "${VIRTUAL_ENV}" ]]; then
+        local_PS1=""
+    else
+	# . ${VIRTUAL_ENV}/bin/activate
+        local_PS1="${BOLD}${REVERSE}${MAGENTA_FG}Virtualenv:${RESET} ${BOLD}${YELLOW_FG}($(basename ${VIRTUAL_ENV}))\n${RESET}"
+    fi
+    if [[ "$local_PS1" != "" ]]; then printf "\_ ${BOLD}${REVERSE}${CYAN_FG}VirtualEnv:${RESET} ${local_PS1}\n${RESET}"; fi
+}
+
+function prompt_info() {
+    # Detecting superuser with visible color :)
+    if [[ ${USER} == "root" ]]; then # useful for sudo
+	user_makeup="${BOLD}${RED_FG}${USER}${RESET}"
+    else
+	user_makeup="${BOLD}${YELLOW_FG}${USER}${RESET}"
+    fi
+ 
+    # Hostname color
+    hostname_makeup="${BOLD}${MAGENTA_FG}\h${RESET}"
+ 
+    # Directory color path.
+    if [[ -O "${PWD}" ]]; then # if owner.
+	pwd_makeup="${BOLD}${GREEN_FG}\w${RESET}"
+    elif [[ -w "${PWD}" ]]; then # if write permission.
+	pwd_makeup="${BOLD}${CYAN_FG}\w${RESET}"
+    else # if denied for write.
+	pwd_makeup="${BOLD}${RED_FG}\w${RESET}"
+    fi
+ 
+    # Jobs in background
+    # Getting current nb of background jobs
+    bg_jobs_makeup="jobs_bg:${BOLD}${WHITE_FG}$(jobs | wc -l | awk '{ print $1 }')${RESET}"
+ 
+    # Date information
+    date_makeup="${BOLD}${WHITE_FG}$(date "+%d/%m/%y %T")${RESET}"
+ 
+    # Add a bold red number for exitcode if its nonzero
+    # dummy escape (\[${color sequence}\]) to avoid breaking line length calculation issue
+#    if [ ${EXIT_CODE} -ne 0 ]; then
+#	exit_makeup="\[${BOLD}${RED_BG}\]✘:${EXIT_CODE}\[${RESET}\]"
+#    else
+#	exit_makeup="\[${BOLD}${GREEN_BG}\]✔:${EXIT_CODE}\[${RESET}\]"
+#    fi
+ 
+    local local_PS1="<=- ${user_makeup} @ ${hostname_makeup} =-> [${date_makeup}]-=-[${bg_jobs_makeup}]\n"
+    printf "${local_PS1}"
+}
+
+function prompt_local_path() {
+    # Directory color path.
+    if [[ -O "${PWD}" ]]; then # if owner.
+        pwd_makeup="${BOLD}${GREEN_FG}\w${RESET}"
+    elif [[ -w "${PWD}" ]]; then # if write permission.
+        pwd_makeup="${BOLD}${CYAN_FG}\w${RESET}"
+    else # if denied for write.
+        pwd_makeup="${BOLD}${RED_FG}\w${RESET}"
+    fi
+
+    local local_PS1="<=- ${BOLD}${REVERSE}${GREEN_FG}Local path:${RESET} ${pwd_makeup} -=>\n"
+    printf "${local_PS1}"
+}
+
+function prompt_return_code() {
+ # Add a bold red number for exitcode if its nonzero
+    # dummy escape (\[${color sequence}\]) to avoid breaking line length calculation issue
+    if [ ${EXIT_CODE} -ne 0 ]; then
+	exit_makeup="\[${BOLD}${RED_BG}\]✘:${EXIT_CODE}\[${RESET}\]"
+    else
+	exit_makeup="\[${BOLD}${GREEN_BG}\]✔:${EXIT_CODE}\[${RESET}\]"
+    fi
+
+    local local_PS1="[${exit_makeup}]"
+    printf "\n${local_PS1}"
+
+}
+
+function prompt_output() {
+    # For fix freeze prompt shell with Tramp into Emacs
+    case "$TERM" in
+	"dumb")
+	    PS1="> "
+	    ;;
+	xterm*|rxvt*|eterm*|screen*)
+            # Prompt line... make your prompt here ... (Need to be serialized.)
+	    # \$ : Display # (indicates root user) if the effective UID is 0, otherwise display a $
+	    PS1="\n$(prompt_info)\n$(cf_info)$(virtualenv_info)$(git_info)$(prompt_local_path)$(prompt_return_code)\$ "
+	    ;;
+	*)
+	    PS1="> "
+	    ;;
+    esac
+}
+ 
+function prompt_command() {
+    local EXIT_CODE=$?
+ 
+    # Dynamic title for terminal
+    # Don't work under emacs shell (M-x term)
+    echo -ne "\033]0;${USER}@${HOSTNAME}:${PWD}\007"
+ 
+    # Calling the personnal prompt fct.
+    prompt_output
+}
+ 
+################
+# Main section #
+################
+ 
+PROMPT_COMMAND=prompt_command
+
+######SWARM#####
+ORG_PS1='[\t] \[\033[01;32m\]VBOX\[\033[01;34m\] \w\[\033[01;33m\]$(__git_ps1)\[\033[01;34m\] \$\[\033[00m\] '
+PS1='[\t] \[\033[01;32m\]VBOX\[\033[01;34m\] \w\[\033[01;33m\]$(__git_ps1)\[\033[01;34m\] \$\[\033[00m\] '
+
