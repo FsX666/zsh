@@ -79,7 +79,8 @@ if [ $? -ne 0 ];then
                 echo "ERROR: Could no launch ssh-agent" >&2
         fi
         . $SSH_AGENT_CONF > /dev/null
-        ssh-add
+	ssh-add ssh-add $(grep -slR "PRIVATE" ~/.ssh/id_*)
+
 fi
 
 docksh() {
